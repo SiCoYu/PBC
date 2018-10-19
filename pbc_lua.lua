@@ -1,10 +1,47 @@
-local path = "C:/Users/win10/Desktop/LuaPBC/protobuf.so"
+local path = "E:/SelfWorkSpace/PBC/PBC/protobuf.so"
 local f = package.loadlib(path, "luaopen_protobuf_c")
 package.path = "?.lua;"
 package.cpath = "?.so;"
 local GProtobuf = require "protobuf"
 require "message"
 
+local serpent = require("serpent")
+_G.decode_tb = function(tb)
+    return serpent.block(tb,{comment = false,custom = 
+        function(tag,head,body,tail)
+            if not string.find(body,"%a+") then
+                body = string.gsub(body,"[\n%s]", "")
+            end
+            return string.format('%s%s%s%s',tag,head,body,tail)
+        end
+    })
+end
+
+local function print_r(root)
+	local srep = string.rep
+	local tconcat = table.concat
+	local tinsert = table.insert
+	local cache = { [root] = "." }
+	local function _dump(t, space, name)
+		local temp = {}
+		for k, v in pairs(t) do
+			local key = tostring(k)
+			if cache[v] then
+				tinsert(temp, "+" .. key .. " {" .. cache[v] .. "}")
+			elseif type(v) == "table" then
+				local new_key = name .. "." .. key
+				cache[v] = new_key
+				tinsert(temp, "+" .. key .. _dump(v, space .. (next(t, k) and "|" or " ") .. srep(" ", #key), new_key))
+			else
+				tinsert(temp, "+" .. key .. " [" .. tostring(v) .. "]")
+			end
+		end
+		return tconcat(temp, "\n" .. space)
+	end
+
+	print(_dump(root, "", ""))
+end
+-- decode_tb = print_r
 -- 第1步Register Proto
 
 RegisterProtocol = {}
@@ -19,7 +56,7 @@ local PBFilePath = "%s.pb"
 
 local function GetProtoFullPath(fileName)
 	local fixFileName = string.format(PBFilePath,fileName)
-	local fullPath = "C:/Users/win10/Desktop/LuaPBC/"..fixFileName
+	local fullPath = "E:/SelfWorkSpace/PBC/PBC/"..fixFileName
 	return fullPath
 end
 
@@ -47,8 +84,18 @@ function RegisterProtocol.Register()
 			end
 		end
 	end
-	local data = { account = "101", version = "0.0.1", server_id = "192.168.0.1", channel_name = "dummy" }
-	RegisterProtocol.SendNetMsg(100001, data)
+	-- local data = { account = "101", version = "0.0.1", server_id = "192.168.0.1", channel_name = "dummy" }
+	local player_list = {}
+	local player1 = {uid = "101",career = 1,name = "yxk",level = 10,create_time = 123}
+	local player2 = {uid = "102",career = 2,name = "wdg",level = 20,create_time = 456}
+	local player3 = {uid = "103",career = 3,name = "gcq",level = 30,create_time = 789}
+	table.insert(player_list,player1)
+	table.insert(player_list,player2)
+	table.insert(player_list,player3)
+
+	local data = {uid = "123", player_list = player_list}
+
+	RegisterProtocol.SendNetMsg(110001, data)
 end
 
 -- 第2步注册消息
@@ -101,7 +148,6 @@ end
 function RegisterProtocol.SendNetMsg(msgId, data)
 	local msg = nil
 	local pack = nil
-	-- print(decode_tb(data))
 	if data ~= nil then
 		local proto = get_message_by_id(msgId)
 		if proto == nil then print("Get Message Failed, msgId = "..tostring(msgId)) return end
@@ -132,11 +178,15 @@ function RegisterProtocol.HandleNew(pack)
 		local message = get_message_by_id(msg.id)
 		if message and msg.payload and string.len(msg.payload) > 0 then
 			local t = GProtobuf.decode("uranus." .. message, msg.payload)
-			print("decode=> uranus." .. message)
-			print("t.account = "..t.account)
-			print("t.version = "..t.version)
-			print("t.server_id = "..t.server_id)
-			print("t.channel_name = "..t.channel_name)
+			for i,v in ipairs(t.player_list) do
+				print("type v = "..type(v))
+				print(i.."======"..decode_tb(v))
+				print("v.uid = "..v.uid)
+				print("v.career = "..v.career)
+				print("v.name = "..v.name)
+				print("v.level = "..v.level)
+				print("v.create_time = "..v.create_time)
+			end
 		end
 	end
 end
